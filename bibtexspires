@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+tmpfile=/tmp/bibcite
+tmpbib=/tmp/bibentry
+tmpbibout=/tmp/bibout
+
+if [ ! "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ];then
+   echo "USAGE $0 FILE"
+   echo "Where FILE is the LaTeX FILE.tex, but without .tex extension"
+   echo "Be sure thata FILE.aux be updated (latex & bibtex)"
+   echo "To convert arXiv numbers or journal to spires texkey use texkey"
+   exit
+else 
+   if [ -f "$1".tex ];then
+       texfile="$1"
+   else
+       echo "$1".tex does not exist!
+       echo See $0 --help
+       exit
+   fi
+fi
+if [ ! -f "$texfile.aux" ];then
+   echo "RUN latex $file FIRST!"
+   echo See $0 --help
+   exit 
+fi
+if [ -f $texfile.bibspires ];then
+    echo "======================="
+    echo "WARNING: appending SPIRES entries to exisiting $texfile.bibspires"
+    unalias rm 2> /dev/null
+    rm -i $texfile.bibspires
+fi
+echo "======================="
+echo "RUNING bibtex $texfile"
+bibtex $texfile > $tmpbibout
+list=$(cat $tmpbibout | grep "didn't find a database entry for" | awk '{print $NF}')
+for i in $list;do 
+    keytex=$(echo $i|sed 's/"//g')
+    echo "======================="
+    echo "obtaining spires bibtex entry for $keytex"
+    wget -nv -O $tmpfile "http://www.slac.stanford.edu/spires/find/hep/www?rawcmd=FIND+TEXKEY+$keytex&FORMAT=wwwbriefbibtex" 2> /dev/null
+    if [ $(cat $tmpfile | grep "@Article") ]; then
+	cat $tmpfile | grep -A100 "@Article" | grep -B100 -E '^}$' > $tmpbib
+	cat $tmpbib >> $texfile.bibspires  
+	echo "bibtex SPIRES entry for $keytex saved into $texfile.bibspires"
+    else
+      echo "NOT SPIRES ENTRY FOR: $keytex"
+      echo "Check $texfile.nospires, for a list of failed keytex"
+      echo $keytex >> $texfile.nospires
+    fi
+    rm -f $tmpfile $tmpbib
+    sleep 1
+done
+echo "======================="
+echo "obtained bibtetex entries in:"
+echo "$texfile.bibspires"
+echo "Append this file to your bibtex file:?(y/n)"
+read qtn
+if [ "$qtn" = y ];then
+    bibfile=$(kpsewhich -format=.bib $(cat "${texfile}.tex" | grep -E "\\\bibliography\{.*\}" | awk -F"{" '{print $2}' | awk -F"}" '{print $1}'))
+  echo "bibtexfile name (Just hit <enter> if $bibfile)":
+  read bibfilenew
+  if [ "$bifilenew" ];then
+      bibfile=$bifilenew
+  fi
+  if [ -f "$bibfile" ];then
+      cat "$texfile.bibspires" >> "$bibfile"
+      echo bibtex entries appended to "$bibfile"
+  else 
+      echo "$bibfile not found"
+  fi
+fi
+echo "======================="
+rm -f $tmpbibout

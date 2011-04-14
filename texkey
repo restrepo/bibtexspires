@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+if [ ! "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ];then
+   echo "convert \cite{eprint,journal} into the \cite{texkey1,texkey2}, along all FILE."
+   echo "USAGE $0 FILE"
+   echo "Where FILE is the LaTeX FILE"
+   echo "The output is in FILE.key, if right copy to FILE"
+   echo "eprint is in the format: either hep-ph/nnnnn, or nnnn.nnnn"
+   echo "journal is in the format: name_of_journal_volume_page, e.g, phys_rev_d11_523"
+   exit
+else 
+   if [ -f "$1" ];then
+       texfile="$1"
+       tmptexfile="$1".key
+       tmptexfilebak=/tmp/"$1".key
+   else
+       echo "$1" does not exist!
+       echo See $0 --help
+       exit
+   fi
+fi
+cp -f $texfile $tmptexfile
+lista=$(cat $texfile | perl -p -i -e 's/\\cite\{([a-zA-Z:0-9,\/\-._]*)\}/\n:::\1 :::\n/g' | grep ::: | awk -F":::" '{print $2}' | perl -p -i -e 's/\,/\n/g' | perl -p -i -e 's/\ $//' | sort | uniq | grep -v ":")
+for i in $lista;do
+    hep=$(echo $i | grep "/")
+    arxiv=$(echo $i | grep "\.")
+    journal=$(echo $i | grep "_")
+    if [ "$hep" ] || [ "$arxiv" ];then
+	j=$($HOME/bin/getspires $i | grep "\\\bibitem{" | perl -p -i -e 's/\\bibitem\{([a-zA-Z:0-9,\/\-._]*)\}/\1/')
+	arjor=True
+	if [ ! "$j" ];then
+	    j=$i
+	fi
+	echo $i $j
+    elif [ "$journal" ];then
+	journal=$(echo $i | perl -p -i -e 's/_([A-Za-z0-9]+)\_([0-9]+)$/,\1,\2/' | perl -p -i -e 's/\_/ /g')
+	j=$($HOME/bin/getspires -j "$journal" | grep "\\\bibitem{" | perl -p -i -e 's/\\bibitem\{([a-zA-Z:0-9,\/\-._]*)\}/\1/')
+	arjor=True
+	if [ ! "$j" ];then
+	    j=$i
+	fi
+	echo $i $journal $j
+    fi
+    if [ "$arjor" ];then
+	ii=$(echo $i | perl -p -i -e 's/\//\\\//') # change hep-ph/nnnnn into hep-ph\/nnnnn
+	cat $tmptexfile | perl -p -i -e 's/'$ii'/'$j'/g' > $tmptexfilebak
+	echo fin $ii $j
+	cp -f $tmptexfilebak $tmptexfile  
+	arjor=""
+    fi
+done
+echo Output in $tmptexfile >&2
