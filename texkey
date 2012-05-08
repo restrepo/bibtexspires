@@ -1,4 +1,43 @@
 #!/usr/bin/env bash
+function getspires {
+  tmpfile=/tmp/getspirescitefull
+  tmpbibitem=/tmp/getspirescite
+  mirror=http://www.slac.stanford.edu
+  if [ ! "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ];then
+     echo "USAGE $0 ARXIV-KEY
+                 $0 -j JOURNAL-KEY"
+     exit
+  fi
+  if [ "$1" = "-j" ];then
+      if [ "$2" ];then
+   	wget -nv -O $tmpfile "${mirror}/spires/find/hep/www?rawcmd=FIND+J+$2&FORMAT=wwwbrieflatex2" 2> /dev/null
+   	key=$2
+   	sleep 1
+      else
+   	echo "USAGE $0 -j JOURNAL-KEY"
+      fi
+  elif [ "$1" = "-d" ];then
+      if [ "$2" ];then
+   	wget -nv -O $tmpfile "${mirror}/spires/find/hep/www?rawcmd=DOI+$2&FORMAT=wwwbrieflatex2" 2> /dev/null
+   	key=$2
+   	sleep 1
+      else
+   	echo "USAGE $0 -d DOI-KEY"
+      fi
+  else
+      wget -nv -O $tmpfile "${mirror}/spires/find/hep/www?rawcmd=FIND+EPRINT+$1&FORMAT=wwwbrieflatex2" 2> /dev/null
+      key=$1
+      sleep 1
+  fi
+  if [ $(cat $tmpfile | grep "^\\\bibitem") ]; then
+      cat $tmpfile | grep -A100 "^\\\bibitem" | grep -B100 "%%CITATION" 
+  else
+        echo "NOT SPIRES ENTRY FOR: $key"
+  fi
+  rm -f $tmpfile $tmpbibitem
+}
+
+# Main program
 if [ ! "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ];then
    echo "convert \cite{eprint,journal} into the \cite{texkey1,texkey2}, along all FILE."
    echo "USAGE $0 FILE"
@@ -25,7 +64,7 @@ for i in $lista;do
     arxiv=$(echo $i | grep "\.")
     journal=$(echo $i | grep "_")
     if [ "$hep" ] || [ "$arxiv" ];then
-	j=$($HOME/bin/getspires $i | grep "\\\bibitem{" | perl -p -i -e 's/\\bibitem\{([a-zA-Z:0-9,\/\-._]*)\}/\1/')
+	j=$(getspires $i | grep "\\\bibitem{" | perl -p -i -e 's/\\bibitem\{([a-zA-Z:0-9,\/\-._]*)\}/\1/')
 	arjor=True
 	if [ ! "$j" ];then
 	    j=$i
@@ -33,7 +72,7 @@ for i in $lista;do
 	echo $i $j
     elif [ "$journal" ];then
 	journal=$(echo $i | perl -p -i -e 's/_([A-Za-z0-9]+)\_([0-9]+)$/,\1,\2/' | perl -p -i -e 's/\_/ /g')
-	j=$($HOME/bin/getspires -j "$journal" | grep "\\\bibitem{" | perl -p -i -e 's/\\bibitem\{([a-zA-Z:0-9,\/\-._]*)\}/\1/')
+	j=$(getspires -j "$journal" | grep "\\\bibitem{" | perl -p -i -e 's/\\bibitem\{([a-zA-Z:0-9,\/\-._]*)\}/\1/')
 	arjor=True
 	if [ ! "$j" ];then
 	    j=$i

@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+tmpfile=/tmp/bblcite
+tmpbib=/tmp/bblntry
+tmpbibout=/tmp/bblout
+
+if [ ! "$1" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ];then
+   echo "USAGE $0 FILE"
+   echo "Where FILE is the LaTeX output FILE.bbl"
+   echo "Be sure thata FILE.aux be updated (latex & bibtex)"
+   echo "To convert arXiv numbers or journal to spires texkey use texkey"
+   echo "To generate input bbl file use bibtexspires and bibtex; latex; latex"
+   exit
+else 
+   if [ -f "$1" ];then
+       if [ "$(echo "$1" | grep -E '\.bbl$')" ]; then 
+           bblfile="$1"
+       else 
+	  echo "ERROR: input not in bbl format"
+	  echo "See $0 --help"
+	  exit
+       fi
+   else
+       echo "$1" does not exist!
+       echo See $0 --help
+       exit
+   fi
+fi
+
+rm -f $bblfile.nospires
+list=$(cat $bblfile | grep -E  '^\\bibitem' | sed -r 's/.*\{(.*)\}/\1/')
+echo "\begin{thebibliography}{10}" > $bblfile.new
+for i in $list;do 
+    keytex=$i
+    echo "======================="
+    echo "obtaining spires bibtex entry for $keytex"
+    wget -nv -O $tmpfile "http://www.slac.stanford.edu/spires/find/hep/www?rawcmd=FIND+TEXKEY+$keytex&FORMAT=wwwbrieflatex2" 2> /dev/null
+    if [ $(cat $tmpfile | grep -E '^\\bibitem') ]; then
+	cat $tmpfile | grep -E -A100 '^\\bibitem' | grep -B100 -E '\s*\%\%CITATION' > $tmpbib
+	echo "" >> $bblfile.new
+	cat $tmpbib >> $bblfile.new
+	echo "bibtex SPIRES entry for $keytex saved into $bblfile.new"
+    else
+      echo "NOT SPIRES ENTRY FOR: $keytex"
+      echo "Check $bblfile.nospires, for a list of failed keytex"
+      echo $keytex >> $bblfile.nospires
+    fi
+    rm -f $tmpfile $tmpbib
+    sleep 1
+done
+echo "" >> $bblfile.new
+echo "\end{thebibliography}" >> $bblfile.new
+if [ ! -f "$bblfile.nospires" ];then
+    cp -i $bblfile.new $bblfile
+else
+   echo "Output in $bblfile.new" 
+fi
+

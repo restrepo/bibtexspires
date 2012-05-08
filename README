@@ -1,1 +1,31 @@
-My scripts
+Spire scripts:
+
+texkey: convert magic \cite into spires texkey names
+bibtexpires: generate bibtex from \cite{texkey}
+bblspires: convert file.bbl into LaTeX(EU) spires format
+
+Usage:
+In your latex file use easy \cite keys like: \cite{hep-ph/0603456} \cite{0908.3456} \cite{phys_rev_d54_345}, then
+
+$ texkey file.tex
+file.tex.key is generated that could be overwritten into the original file.tex
+
+The file.tex could have a format like
+
+ [...]
+ \usepackage[punctsep]{collref}
+ [...]
+ \bibliographystyle{h-physrev4}
+ \bibliography{bibfile}
+
+Then 
+
+$ bibtexspires file
+$ bibtex file
+$ pdflatex file && pdflatex file
+
+To change file.bbl into a more standard spires format:
+
+$ bblspires file.bbl
+
+
